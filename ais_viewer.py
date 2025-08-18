@@ -551,8 +551,8 @@ class AISViewer(QMainWindow):
             return
 
         try:
-            # Clear plot but preserve basemap
-            self._clear_trajectory_items()
+            # Always clear everything first - trajectories, heatmaps, legends
+            self._clear_all_plot_items()
             
             # Reload basemap if needed
             if self.basemap_checkbox.isChecked():
@@ -566,10 +566,10 @@ class AISViewer(QMainWindow):
             self.current_trajectory = trajectories[0]
 
             if self.heatmap_checkbox.isChecked():
+                # HEATMAP MODE: Only show heatmap, no trajectories at all
                 self._render_heatmap(all_coords)
             else:
-                if self.heatmap_item:
-                    self.plot.removeItem(self.heatmap_item)
+                # TRAJECTORY MODE: Show trajectories and points
                 self._render_trajectories(trajectories, selected_rows)
 
             # Fit view
@@ -579,12 +579,46 @@ class AISViewer(QMainWindow):
         finally:
             self.heatmap_processing = False
 
-    def _clear_trajectory_items(self):
-        """Clear trajectory-related plot items"""
+    def _clear_all_plot_items(self):
+        """Clear all plot items except basemap"""
+        # Clear trajectory items
         for item in [self.curve, self.scatter, self.selected_point]:
             if item and item in self.plot.items:
                 self.plot.removeItem(item)
         self.curve = self.scatter = self.selected_point = None
+        
+        # Clear legend if it exists
+        if hasattr(self.plot, 'legend') and self.plot.legend is not None:
+            self.plot.legend.scene().removeItem(self.plot.legend)
+            self.plot.legend = None
+            
+        # Clear heatmap items
+        if self.heatmap_item:
+            self.plot.removeItem(self.heatmap_item)
+            self.heatmap_item = None
+        if self.heatmap_lut:
+            try:
+                if hasattr(self.heatmap_lut, 'setRect'):
+                    self.plot.removeItem(self.heatmap_lut)
+                else:
+                    self.plot_widget.removeItem(self.heatmap_lut)
+            except (ValueError, RuntimeError):
+                pass
+            self.heatmap_lut = None
+            
+        # Clear any remaining plot items that aren't basemap (z-value >= 0)
+        items_to_remove = []
+        for item in self.plot.items:
+            if hasattr(item, 'zValue') and item.zValue() >= 0:
+                # Don't remove basemap items (they have negative z-values)
+                if item not in self.basemap_items:
+                    items_to_remove.append(item)
+        
+        for item in items_to_remove:
+            try:
+                self.plot.removeItem(item)
+            except:
+                pass
 
     def _get_selected_trajectories_and_coords(self, selected_rows: List[int]) -> tuple:
         """Get trajectories and coordinates for selected rows"""
@@ -603,7 +637,7 @@ class AISViewer(QMainWindow):
         return trajectories, list(zip(all_lats, all_lons))
 
     def _render_heatmap(self, coords: List[tuple]):
-        """Render transparent heatmap"""
+        """Render transparent heatmap ONLY - no trajectories"""
         if not coords:
             return
             
@@ -613,18 +647,18 @@ class AISViewer(QMainWindow):
         heatmap, yedges, xedges = np.histogram2d(lats, lons, bins=300)
         heatmap = gaussian_filter(heatmap, sigma=1.0)
         
-        # Clear old heatmap
-        if self.heatmap_item:
-            self.plot.removeItem(self.heatmap_item)
-            
         # Create transparent RGBA heatmap
         rgba_heatmap = create_transparent_heatmap(heatmap, 'hot')
         rgba_heatmap = np.rot90(np.flipud(rgba_heatmap), k=3)
         
         self.heatmap_item = pg.ImageItem(rgba_heatmap)
         self.heatmap_item.setRect(xedges[0], yedges[0], xedges[-1] - xedges[0], yedges[-1] - yedges[0])
-        self.heatmap_item.setZValue(-100)
+        self.heatmap_item.setZValue(-100)  # Behind everything except basemap
         self.plot.addItem(self.heatmap_item)
+        
+        # Clear forms since we're only showing heatmap
+        self._clear_form_layout(self.stats_form)
+        self._clear_form_layout(self.point_form)
 
     def _render_trajectories(self, trajectories: List[Trajectory], selected_rows: List[int]):
         """Render trajectory lines and points"""
@@ -636,6 +670,11 @@ class AISViewer(QMainWindow):
 
     def _render_multiple_trajectories(self, trajectories: List[Trajectory]):
         """Render multiple trajectories with different colors"""
+        # Clear any existing legend first
+        if hasattr(self.plot, 'legend') and self.plot.legend is not None:
+            self.plot.legend.scene().removeItem(self.plot.legend)
+            self.plot.legend = None
+            
         legend = self.plot.addLegend()
         colors = [(255, 0, 0), (0, 128, 255), (0, 200, 0), (255, 165, 0), 
                  (128, 0, 255), (255, 20, 147), (0, 255, 255), (128, 128, 0)]
@@ -664,6 +703,9 @@ class AISViewer(QMainWindow):
             self.scatter.addPoints(all_spots)
             self.scatter.setZValue(2000)
             self.plot.addItem(self.scatter)
+            
+        # Clear forms for multiple trajectories
+        self._clear_form_layout(self.stats_form)
 
     def _fit_view_to_coords(self, coords: List[tuple]):
         """Fit view to coordinate bounds"""
@@ -786,6 +828,10 @@ class AISViewer(QMainWindow):
         # Restore trajectory display
         self.plot.vb.enableAutoRange()
         if self.current_trajectory:
+            # Clear everything first, then render fresh
+            self._clear_all_plot_items()
+            if self.basemap_checkbox.isChecked():
+                self.load_basemap()
             self.render_trajectory(self.current_trajectory)
 
     def _setup_simulation_view(self):
@@ -794,7 +840,7 @@ class AISViewer(QMainWindow):
             return
             
         # Clear existing trajectory display
-        self._clear_trajectory_items()
+        self._clear_all_plot_items()
         
         # Set view to trajectory bounds
         lat_col, lon_col = self.current_trajectory.columns['lat'], self.current_trajectory.columns['lon']
