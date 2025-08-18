@@ -105,6 +105,7 @@ Optional columns (`sog`, `cog`, `mmsi`, `status`) are used for simulation and di
 | `ImportError: PyQt5` | `pip install PyQt5` |
 | Blank window / no map tiles | Check internet connectivity; OSM servers may block excessive requests. |
 | Simulation too fast/slow | Adjust `simulation_speed_multiplier` in code. |
+| Could not initialize GLX | Try export __GLX_VENDOR_LIBRARY_NAME=nvidia before you start your program |
 
 ---
 
