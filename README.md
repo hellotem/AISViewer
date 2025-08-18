@@ -34,6 +34,7 @@ PyQt5
 pyqtgraph
 pandas
 numpy
+scipy
 Pillow
 requests
 ```
