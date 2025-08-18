@@ -10,7 +10,7 @@
 | Feature | Description |
 |---------|-------------|
 | 📂 **Batch Import** | Load single CSV files or entire folders at once. |
-| 🗺️ **Basemap Overlay** | Toggle OpenStreetMap tiles for geographic context. |
+| 🗺️ **Heatmap Display** | Show heatmap of AIS message density. |
 | 🎮 **Sailing Simulation** | Replay any trajectory in real time (constant or SOG-based speed). |
 | 📏 **Distance Measure** | Click-to-measure great-circle distances on the plot. |
 | 🖱️ **Hover Tooltip** | Instant data read-out when hovering over any point. |
@@ -75,7 +75,7 @@ Optional columns (`sog`, `cog`, `mmsi`, `status`) are used for simulation and di
 | **Pan** | Click & drag. |
 | **Measure** | Enable “Measure Distance”, click start & end points. |
 | **Replay** | Select one trajectory, press `▶ Simulate Sailing`. Toggle `Simulate with SOG` for realistic timing. |
-| **Basemap** | Tick “Show Basemap” to overlay OSM tiles. |
+| **Heatmap** | Tick “Show Heatmap” to show AIS message density distribution. |
 | **Delete** | Select rows ➜ `Delete Selected`. |
 
 ---
