@@ -270,13 +270,13 @@ class TrajectoryTableWidget(QTableWidget):
             self.setItem(row, 6, NumericTableWidgetItem(str(data['Lat Range']), data['Lat Range']))
             self.setItem(row, 7, NumericTableWidgetItem(str(data['Lon Range']),data['Lon Range']))
             
-            # Make numeric columns sortable as numbers
-            for col in [1, 2, 4, 5]:  # Data Points, Distance, Center Lat, Center Lon
-                item = self.item(row, col)
-                if col in [1]:  # Integer columns
-                    item.setData(Qt.UserRole, int(float(data[self.horizontalHeaderItem(col).text()])))
-                else:  # Float columns
-                    item.setData(Qt.UserRole, float(data[self.horizontalHeaderItem(col).text()]))
+            # # Make numeric columns sortable as numbers
+            # for col in [1, 2, 3, 4, 5]:  # Data Points, Distance, Center Lat, Center Lon
+            #     item = self.item(row, col)
+            #     if col in [1]:  # Integer columns
+            #         item.setData(Qt.UserRole, int(float(data[self.horizontalHeaderItem(col).text()])))
+            #     else:  # Float columns
+            #         item.setData(Qt.UserRole, float(data[self.horizontalHeaderItem(col).text()]))
     
     def on_selection_changed(self):
         """Handle row selection"""
@@ -566,107 +566,127 @@ class FoliumMapWidget(QWidget):
         ).add_to(map_obj)
     
     def focus_on_trajectory(self, mmsi, center_lat, center_lon):
-        """Focus the map on a specific trajectory without changing the base layer"""
+        """Focus the map on a specific trajectory"""
         if self.current_map is None:
             return
         
-        # Create a new map centered on the trajectory but keep OpenStreetMap
-        m = folium.Map(
-            location=[center_lat, center_lon],
-            zoom_start=10,
-            tiles='OpenStreetMap',
-            prefer_canvas=True
-        )
+        # Create JavaScript code to pan and zoom to the trajectory
+        js_code = f"""
+        <script>
+        setTimeout(function() {{
+            var map = window[Object.keys(window).find(key => key.startsWith('map_'))];
+            if (map) {{
+                map.setView([{center_lat}, {center_lon}], 10);
+            }}
+        }}, 100);
+        </script>
+        """
         
-        # Add all the same layers as the main map (but keep them hidden)
-        folium.TileLayer(
-            tiles='https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
-            attr='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
-            name='Stamen Terrain',
-            max_zoom=18,
-            show=False
-        ).add_to(m)
-        
-        folium.TileLayer(
-            tiles='https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
-            attr='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
-            name='Stamen Toner',
-            max_zoom=18,
-            show=False
-        ).add_to(m)
-        
-        folium.TileLayer(
-            tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            name='CartoDB Positron',
-            max_zoom=19,
-            show=False
-        ).add_to(m)
-        
-        folium.TileLayer(
-            tiles='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-            attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            name='CartoDB Dark Matter',
-            max_zoom=19,
-            show=False
-        ).add_to(m)
-        
-        folium.TileLayer(
-            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-            attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-            name='Satellite',
-            max_zoom=19,
-            show=False
-        ).add_to(m)
-        
-        # Filter data for the specific vessel
-        if self.data is not None and 'mmsi' in self.data.columns:
-            vessel_data = self.data[self.data['mmsi'] == mmsi]
-            
-            # Add heatmap for this vessel
-            if len(vessel_data) > 0:
-                heat_data = vessel_data[['latitude', 'longitude']].values.tolist()
-                HeatMap(
-                    heat_data,
-                    name=f'Vessel {mmsi} Heatmap',
-                    min_opacity=0.4,
-                    radius=15,
-                    blur=15,
-                    gradient={0.2: 'blue', 0.4: 'lime', 0.6: 'orange', 0.8: 'red', 1.0: 'darkred'}
-                ).add_to(m)
-                
-                # Add trajectory line for this vessel
-                if len(vessel_data) > 1:
-                    trajectory_coords = vessel_data[['latitude', 'longitude']].values.tolist()
-                    folium.PolyLine(
-                        locations=trajectory_coords,
-                        color='red',
-                        weight=3,
-                        opacity=0.8,
-                        popup=f'Vessel {mmsi} Trajectory'
-                    ).add_to(m)
-                    
-                    # Add start and end markers
-                    folium.Marker(
-                        location=trajectory_coords[0],
-                        popup=f'Start - Vessel {mmsi}',
-                        icon=folium.Icon(color='green', icon='play')
-                    ).add_to(m)
-                    
-                    folium.Marker(
-                        location=trajectory_coords[-1],
-                        popup=f'End - Vessel {mmsi}',
-                        icon=folium.Icon(color='red', icon='stop')
-                    ).add_to(m)
-        
-        # Add controls
-        folium.plugins.Fullscreen().add_to(m)
-        MeasureControl().add_to(m)
-        folium.LayerControl().add_to(m)
-        
-        # Update the current map and display
-        self.current_map = m
+        # Add the script to the current map
+        self.current_map.get_root().html.add_child(folium.Element(js_code))
         self.display_map()
+
+        # """Focus the map on a specific trajectory without changing the base layer"""
+        # if self.current_map is None:
+        #     return
+        
+        # # Create a new map centered on the trajectory but keep OpenStreetMap
+        # m = folium.Map(
+        #     location=[center_lat, center_lon],
+        #     zoom_start=10,
+        #     tiles='OpenStreetMap',
+        #     prefer_canvas=True
+        # )
+        
+        # # Add all the same layers as the main map (but keep them hidden)
+        # folium.TileLayer(
+        #     tiles='https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png',
+        #     attr='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
+        #     name='Stamen Terrain',
+        #     max_zoom=18,
+        #     show=False
+        # ).add_to(m)
+        
+        # folium.TileLayer(
+        #     tiles='https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}.png',
+        #     attr='Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
+        #     name='Stamen Toner',
+        #     max_zoom=18,
+        #     show=False
+        # ).add_to(m)
+        
+        # folium.TileLayer(
+        #     tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+        #     attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        #     name='CartoDB Positron',
+        #     max_zoom=19,
+        #     show=False
+        # ).add_to(m)
+        
+        # folium.TileLayer(
+        #     tiles='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+        #     attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        #     name='CartoDB Dark Matter',
+        #     max_zoom=19,
+        #     show=False
+        # ).add_to(m)
+        
+        # folium.TileLayer(
+        #     tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        #     attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        #     name='Satellite',
+        #     max_zoom=19,
+        #     show=False
+        # ).add_to(m)
+        
+        # # Filter data for the specific vessel
+        # if self.data is not None and 'mmsi' in self.data.columns:
+        #     vessel_data = self.data[self.data['mmsi'] == mmsi]
+            
+        #     # Add heatmap for this vessel
+        #     if len(vessel_data) > 0:
+        #         heat_data = vessel_data[['latitude', 'longitude']].values.tolist()
+        #         HeatMap(
+        #             heat_data,
+        #             name=f'Vessel {mmsi} Heatmap',
+        #             min_opacity=0.4,
+        #             radius=15,
+        #             blur=15,
+        #             gradient={0.2: 'blue', 0.4: 'lime', 0.6: 'orange', 0.8: 'red', 1.0: 'darkred'}
+        #         ).add_to(m)
+                
+        #         # Add trajectory line for this vessel
+        #         if len(vessel_data) > 1:
+        #             trajectory_coords = vessel_data[['latitude', 'longitude']].values.tolist()
+        #             folium.PolyLine(
+        #                 locations=trajectory_coords,
+        #                 color='red',
+        #                 weight=3,
+        #                 opacity=0.8,
+        #                 popup=f'Vessel {mmsi} Trajectory'
+        #             ).add_to(m)
+                    
+        #             # Add start and end markers
+        #             folium.Marker(
+        #                 location=trajectory_coords[0],
+        #                 popup=f'Start - Vessel {mmsi}',
+        #                 icon=folium.Icon(color='green', icon='play')
+        #             ).add_to(m)
+                    
+        #             folium.Marker(
+        #                 location=trajectory_coords[-1],
+        #                 popup=f'End - Vessel {mmsi}',
+        #                 icon=folium.Icon(color='red', icon='stop')
+        #             ).add_to(m)
+        
+        # # Add controls
+        # folium.plugins.Fullscreen().add_to(m)
+        # MeasureControl().add_to(m)
+        # folium.LayerControl().add_to(m)
+        
+        # # Update the current map and display
+        # self.current_map = m
+        # self.display_map()
     
     def calculate_zoom_level(self, df):
         """Calculate appropriate zoom level based on data extent"""
