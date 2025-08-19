@@ -261,7 +261,7 @@ class TrajectoryTableWidget(QTableWidget):
         self.setRowCount(len(trajectory_stats))
         
         for row, data in enumerate(trajectory_stats):
-            self.setItem(row, 0, NumericTableWidgetItem(str(data['MMSI']), data['MMSI']))
+            self.setItem(row, 0, QTableWidgetItem(str(data['MMSI'])))
             self.setItem(row, 1, NumericTableWidgetItem(str(data['Data Points']), data['Data Points']))
             self.setItem(row, 2, NumericTableWidgetItem(str(data['Distance (km)']), data['Distance (km)']))
             self.setItem(row, 3, NumericTableWidgetItem(str(data['Duration']), data['Duration']))
@@ -1150,7 +1150,10 @@ class AISHeatmapViewer(QMainWindow):
 
 def main():
     """Main application entry point"""
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
     app = QApplication(sys.argv)
+    app.setFont(QFont("Segoe UI", 10))
     app.setApplicationName('AIS Heatmap Viewer')
     app.setOrganizationName('AIS Analytics')
     
